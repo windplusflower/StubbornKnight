@@ -35,6 +35,7 @@ public class ArrowGame : MonoBehaviour
     private Sprite[] _arrowSprites;
     private GameObject _container;
     private bool _isAnimating = false;
+    private bool _isEnabled = true;
     private const float AnimationDuration = 0.2f;
 
     // 公共接口：获取当前底部箭头
@@ -85,6 +86,9 @@ public class ArrowGame : MonoBehaviour
         LoadArrowSprites();
         CreateArrowDisplay();
         GenerateNewArrows();
+        
+        // 应用初始启用状态
+        SetModEnabled(_isEnabled);
     }
     
     private void CleanupOldArrows()
@@ -177,6 +181,15 @@ public class ArrowGame : MonoBehaviour
     private void Log(string message)
     {
         StubbornKnight.instance.Log($"[ArrowGame] {message}");
+    }
+
+    public void SetModEnabled(bool enabled)
+    {
+        _isEnabled = enabled;
+        if (_container != null)
+        {
+            _container.SetActive(enabled);
+        }
     }
 
     private void CreateArrowDisplay()
@@ -322,6 +335,13 @@ public class SpellInterceptAction : FsmStateAction
 {
     public override void OnEnter()
     {
+        // 检查 mod 开关
+        if (!StubbornKnight.IsModEnabled)
+        {
+            Finish();
+            return;
+        }
+
         // 获取 ArrowGame 组件
         var arrowGame = HeroController.instance?.GetComponent<ArrowGame>();
         if (arrowGame == null)
@@ -400,7 +420,8 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
 {
     public static StubbornKnight instance;
     private Settings mySettings = new();
-    private static bool _fsmModified = false;
+
+    public static bool IsModEnabled => instance != null && instance.mySettings.on;
 
     public StubbornKnight() : base("StubbornKnight")
     {
@@ -418,6 +439,7 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
     {
         On.HeroController.Start += HeroController_Start;
         On.HeroController.Attack += HeroController_Attack;
+        On.HeroController.CanNailArt += HeroController_CanNailArt;
         On.PlayMakerFSM.OnEnable += PlayMakerFSM_OnEnable;
 
         ModHooks.LanguageGetHook += changeName;
@@ -427,10 +449,8 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
     {
         orig(self);
         
-        if (mySettings.on)
-        {
-            self.gameObject.AddComponent<ArrowGame>();
-        }
+        var arrowGame = self.gameObject.AddComponent<ArrowGame>();
+        arrowGame.SetModEnabled(mySettings.on);
     }
 
     private void HeroController_Attack(On.HeroController.orig_Attack orig, HeroController self, AttackDirection dir)
@@ -475,17 +495,70 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
         }
     }
 
+    private bool HeroController_CanNailArt(On.HeroController.orig_CanNailArt orig, HeroController self)
+    {
+        bool result = orig(self);
+        
+        if (!mySettings.on || !result)
+        {
+            return result;
+        }
+
+        var arrowGame = self.GetComponent<ArrowGame>();
+        if (arrowGame == null)
+        {
+            return result;
+        }
+
+        // 读取垂直输入判断剑技方向
+        float verticalInput = Input.GetAxisRaw("Vertical");
+        ArrowDirection arrowDir;
+        string nailArtName;
+
+        if (verticalInput > 0.1f)
+        {
+            arrowDir = ArrowDirection.Up;
+            nailArtName = "Cyclone Slash";
+        }
+        else if (verticalInput < -0.1f)
+        {
+            arrowDir = ArrowDirection.Down;
+            nailArtName = "Dash Slash";
+        }
+        else
+        {
+            arrowDir = self.cState.facingRight ? ArrowDirection.Right : ArrowDirection.Left;
+            nailArtName = "Great Slash";
+        }
+
+        // 获取期望方向
+        ArrowDirection expected = arrowGame.CurrentTargetArrow;
+        // 检查是否匹配
+        bool isSuccess = arrowGame.IsSpellAllowed(arrowDir);
+
+        if (!isSuccess)
+        {
+            // 拦截剑技
+            Log($"[NailArt] Expected: {expected}, Actual: {nailArtName}({arrowDir}), Result: FAILED");
+            return false;
+        }
+        else
+        {
+            // 允许释放，触发滚动
+            arrowGame.OnSuccessfulAction();
+            Log($"[NailArt] Expected: {expected}, Actual: {nailArtName}({arrowDir}), Result: SUCCESS");
+            return result;
+        }
+    }
+
     private void PlayMakerFSM_OnEnable(On.PlayMakerFSM.orig_OnEnable orig, PlayMakerFSM self)
     {
         orig(self);
-
-        if (!mySettings.on || _fsmModified) return;
 
         // 检测 Spell Control FSM
         if (self.FsmName == "Spell Control" && self.gameObject == HeroController.instance?.gameObject)
         {
             ModifySpellControlFSM(self);
-            _fsmModified = true;
         }
     }
 
@@ -503,6 +576,12 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
     {
         var state = fsm.Fsm.GetState(stateName);
         if (state == null) return;
+
+        // 检查是否已注入（避免重复）
+        if (state.Actions.Length > 0 && state.Actions[0] is SpellInterceptAction)
+        {
+            return;
+        }
 
         var action = new SpellInterceptAction();
 
@@ -527,6 +606,15 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
 
     public Settings OnSaveGlobal() => mySettings;
 
+    private void ToggleModSetting(bool enabled)
+    {
+        if (HeroController.instance != null)
+        {
+            var arrowGame = HeroController.instance.GetComponent<ArrowGame>();
+            arrowGame?.SetModEnabled(enabled);
+        }
+    }
+
     public List<IMenuMod.MenuEntry> GetMenuData(IMenuMod.MenuEntry? menu)
     {
         List<IMenuMod.MenuEntry> menus = new();
@@ -538,8 +626,12 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
                     Language.Language.Get("MOH_ON", "MainMenu"),
                     Language.Language.Get("MOH_OFF", "MainMenu"),
                 },
-                Saver = i => mySettings.on = i == 0,
+                Saver = i => {
+                    mySettings.on = i == 0;
+                    ToggleModSetting(mySettings.on);
+                },
                 Loader = () => mySettings.on ? 0 : 1,
+                Name = "StubbornKnight"
             }
         );
         return menus;
