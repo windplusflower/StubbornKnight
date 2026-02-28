@@ -4,13 +4,11 @@
  */
 
 using System.Reflection;
-using System.Runtime.ConstrainedExecution;
 using System.Collections;
+using GlobalEnums;
 using HutongGames.PlayMaker;
 using HutongGames.PlayMaker.Actions;
-using JetBrains.Annotations;
 using Modding;
-using Modding.Utils;
 using Satchel;
 using Satchel.Futils;
 using UnityEngine;
@@ -35,56 +33,85 @@ public class ArrowGame : MonoBehaviour
     private SpriteRenderer[] _arrowRenderers;
     private ArrowDirection[] _currentArrows;
     private Sprite[] _arrowSprites;
-    private HeroActions _inputActions;
     private GameObject _container;
     private bool _isAnimating = false;
     private const float AnimationDuration = 0.2f;
 
+    // 公共接口：获取当前底部箭头
+    public ArrowDirection CurrentTargetArrow => _currentArrows[3];
+    public bool IsAnimating => _isAnimating;
+
+    // 检查攻击方向是否匹配
+    public bool IsAttackAllowed(AttackDirection dir)
+    {
+        ArrowDirection target = _currentArrows[3];
+        switch (dir)
+        {
+            case AttackDirection.upward:
+                return target == ArrowDirection.Up;
+            case AttackDirection.downward:
+                return target == ArrowDirection.Down;
+            case AttackDirection.normal:
+                // 普通攻击根据朝向判断左/右
+                if (HeroController.instance == null) return false;
+                return HeroController.instance.cState.facingRight 
+                    ? target == ArrowDirection.Right 
+                    : target == ArrowDirection.Left;
+            default:
+                return false;
+        }
+    }
+
+    // 检查法术方向是否匹配（传入 ArrowDirection 而不是 SpellType）
+    public bool IsSpellAllowed(ArrowDirection dir)
+    {
+        return _currentArrows[3] == dir;
+    }
+
+    // 成功执行动作后调用
+    public void OnSuccessfulAction()
+    {
+        if (!_isAnimating)
+        {
+            RollArrows();
+        }
+    }
+
     private void Start()
     {
+        // 清理旧的箭头容器（避免重复创建）
+        CleanupOldArrows();
+        
         LoadArrowSprites();
         CreateArrowDisplay();
         GenerateNewArrows();
-        
-        _inputActions = InputHandler.Instance.inputActions;
+    }
+    
+    private void CleanupOldArrows()
+    {
+        // 查找并销毁场景中已存在的 ArrowContainer
+        var existingContainers = GameObject.FindObjectsOfType<GameObject>();
+        foreach (var go in existingContainers)
+        {
+            if (go.name == "ArrowContainer" && go.transform.parent == HeroController.instance?.transform)
+            {
+                Destroy(go);
+            }
+        }
     }
 
     private void Update()
     {
-        if (_inputActions == null || _isAnimating) return;
+        // 不再检测方向键输入，改为通过 Hook 拦截攻击和法术
+    }
 
-        ArrowDirection targetArrow = _currentArrows[3];
-        bool isCorrect = false;
-        string inputDir = "None";
-
-        if (_inputActions.left.WasPressed)
-            inputDir = "Left";
-        else if (_inputActions.right.WasPressed)
-            inputDir = "Right";
-        else if (_inputActions.up.WasPressed)
-            inputDir = "Up";
-        else if (_inputActions.down.WasPressed)
-            inputDir = "Down";
-
-        if (inputDir != "None")
+    private void LateUpdate()
+    {
+        if (_container != null && HeroController.instance != null)
         {
-            if (targetArrow == ArrowDirection.Left && _inputActions.left.WasPressed)
-                isCorrect = true;
-            else if (targetArrow == ArrowDirection.Right && _inputActions.right.WasPressed)
-                isCorrect = true;
-            else if (targetArrow == ArrowDirection.Up && _inputActions.up.WasPressed)
-                isCorrect = true;
-            else if (targetArrow == ArrowDirection.Down && _inputActions.down.WasPressed)
-                isCorrect = true;
-
-            // Debug log
-            string arrows = $"Bottom:{_currentArrows[2]}, Mid:{_currentArrows[1]}, Top:{_currentArrows[0]}, Input:{inputDir}, Correct:{isCorrect}";
-            Log(arrows);
-        }
-
-        if (isCorrect)
-        {
-            RollArrows();
+            // 强制设置scale为正值，防止随玩家翻转
+            float playerScaleX = HeroController.instance.transform.lossyScale.x;
+            _container.transform.localScale = new Vector3(1f / playerScaleX, 1f, 1f);
         }
     }
 
@@ -177,16 +204,6 @@ public class ArrowGame : MonoBehaviour
         }
     }
 
-    private void LateUpdate()
-    {
-        if (_container != null && HeroController.instance != null)
-        {
-            // 强制设置scale为正值，防止随玩家翻转
-            float playerScaleX = HeroController.instance.transform.lossyScale.x;
-            _container.transform.localScale = new Vector3(1f / playerScaleX, 1f, 1f);
-        }
-    }
-
     private void GenerateNewArrows()
     {
         for (int i = 0; i < ArrowCount; i++)
@@ -195,27 +212,28 @@ public class ArrowGame : MonoBehaviour
         }
         UpdateArrowDisplay();
         SetTopArrowTransparent();
-        Log($"Generated: 0:{_currentArrows[0]}, 1:{_currentArrows[1]}, 2:{_currentArrows[2]}, 3:{_currentArrows[3]}");
+        // 日志已移除，改为在攻击/法术时打印
     }
 
     private void UpdateArrowDisplay()
     {
-        _arrowRenderers[0].sprite = _arrowSprites[(int)_currentArrows[3]];
-        _arrowRenderers[1].sprite = _arrowSprites[(int)_currentArrows[2]];
-        _arrowRenderers[2].sprite = _arrowSprites[(int)_currentArrows[1]];
-        _arrowRenderers[3].sprite = _arrowSprites[(int)_currentArrows[0]];
-        
-        SetArrowRotation(_arrowRenderers[0], _currentArrows[3]);
-        SetArrowRotation(_arrowRenderers[1], _currentArrows[2]);
-        SetArrowRotation(_arrowRenderers[2], _currentArrows[1]);
-        SetArrowRotation(_arrowRenderers[3], _currentArrows[0]);
+        for (int i = 0; i < ArrowCount; i++)
+        {
+            if (_arrowRenderers[i] == null) continue;
+            int arrowIndex = (ArrowCount - 1) - i; // 3, 2, 1, 0
+            _arrowRenderers[i].sprite = _arrowSprites[(int)_currentArrows[arrowIndex]];
+            SetArrowRotation(_arrowRenderers[i], _currentArrows[arrowIndex]);
+        }
     }
 
     private void SetTopArrowTransparent()
     {
-        Color c = _arrowRenderers[3].color;
-        c.a = 0f;
-        _arrowRenderers[3].color = c;
+        if (_arrowRenderers[3] != null)
+        {
+            Color c = _arrowRenderers[3].color;
+            c.a = 0f;
+            _arrowRenderers[3].color = c;
+        }
     }
 
     private void RollArrows()
@@ -234,6 +252,7 @@ public class ArrowGame : MonoBehaviour
         
         for (int i = 0; i < ArrowCount; i++)
         {
+            if (_arrowRenderers[i] == null) continue;
             startPositions[i] = _arrowRenderers[i].transform.localPosition;
             targetPositions[i] = startPositions[i] + new Vector3(0, -ArrowSpacing, 0);
         }
@@ -245,16 +264,23 @@ public class ArrowGame : MonoBehaviour
 
             for (int i = 0; i < ArrowCount; i++)
             {
-                _arrowRenderers[i].transform.localPosition = Vector3.Lerp(startPositions[i], targetPositions[i], t);
+                if (_arrowRenderers[i] != null)
+                    _arrowRenderers[i].transform.localPosition = Vector3.Lerp(startPositions[i], targetPositions[i], t);
             }
 
-            Color c0 = _arrowRenderers[0].color;
-            c0.a = Mathf.Lerp(1f, 0f, t);
-            _arrowRenderers[0].color = c0;
+            if (_arrowRenderers[0] != null)
+            {
+                Color c0 = _arrowRenderers[0].color;
+                c0.a = Mathf.Lerp(1f, 0f, t);
+                _arrowRenderers[0].color = c0;
+            }
 
-            Color c3 = _arrowRenderers[3].color;
-            c3.a = Mathf.Lerp(0f, 1f, t);
-            _arrowRenderers[3].color = c3;
+            if (_arrowRenderers[3] != null)
+            {
+                Color c3 = _arrowRenderers[3].color;
+                c3.a = Mathf.Lerp(0f, 1f, t);
+                _arrowRenderers[3].color = c3;
+            }
 
             yield return null;
         }
@@ -270,9 +296,12 @@ public class ArrowGame : MonoBehaviour
         
         for (int i = 0; i < ArrowCount - 1; i++)
         {
-            Color c = _arrowRenderers[i].color;
-            c.a = 1f;
-            _arrowRenderers[i].color = c;
+            if (_arrowRenderers[i] != null)
+            {
+                Color c = _arrowRenderers[i].color;
+                c.a = 1f;
+                _arrowRenderers[i].color = c;
+            }
         }
         SetTopArrowTransparent();
 
@@ -288,9 +317,79 @@ public class ArrowGame : MonoBehaviour
     }
 }
 
+// 法术拦截 Action
+public class SpellInterceptAction : FsmStateAction
+{
+    public override void OnEnter()
+    {
+        // 获取 ArrowGame 组件
+        var arrowGame = HeroController.instance?.GetComponent<ArrowGame>();
+        if (arrowGame == null)
+        {
+            Finish();
+            return;
+        }
 
+        // 直接读取输入轴判断法术方向和类型
+        float verticalInput = UnityEngine.Input.GetAxisRaw("Vertical");
+        float horizontalInput = UnityEngine.Input.GetAxisRaw("Horizontal");
 
-// Mod配置类，目前只有开关的配置。可以自行添加额外选项，并在GetMenuData里添加交互。
+        ArrowDirection spellDir;
+        string spellName;
+
+        // 优先检查垂直输入（吼/砸）
+        if (verticalInput > 0.1f)
+        {
+            spellDir = ArrowDirection.Up;
+            spellName = "Shriek(吼)";
+        }
+        else if (verticalInput < -0.1f)
+        {
+            spellDir = ArrowDirection.Down;
+            spellName = "Quake(砸)";
+        }
+        // 然后检查水平输入（波）
+        else if (horizontalInput > 0.1f)
+        {
+            spellDir = ArrowDirection.Right;
+            spellName = "Fireball(波右)";
+        }
+        else if (horizontalInput < -0.1f)
+        {
+            spellDir = ArrowDirection.Left;
+            spellName = "Fireball(波左)";
+        }
+        // 默认：根据朝向判断波的方向
+        else
+        {
+            bool facingRight = HeroController.instance.cState.facingRight;
+            spellDir = facingRight ? ArrowDirection.Right : ArrowDirection.Left;
+            spellName = facingRight ? "Fireball(波右-默认)" : "Fireball(波左-默认)";
+        }
+
+        // 获取期望方向
+        ArrowDirection expected = arrowGame.CurrentTargetArrow;
+        // 检查是否匹配
+        bool isSuccess = (spellDir == expected);
+
+        if (!isSuccess)
+        {
+            // 取消法术
+            Fsm.Event("FSM CANCEL");
+            StubbornKnight.instance.Log($"[Spell] Expected: {expected}, Actual: {spellName}({spellDir}), Result: FAILED");
+        }
+        else
+        {
+            // 允许释放，触发滚动
+            arrowGame.OnSuccessfulAction();
+            StubbornKnight.instance.Log($"[Spell] Expected: {expected}, Actual: {spellName}({spellDir}), Result: SUCCESS");
+        }
+
+        Finish();
+    }
+}
+
+// Mod配置类
 [Serializable]
 public class Settings
 {
@@ -300,29 +399,25 @@ public class Settings
 public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
 {
     public static StubbornKnight instance;
-    /*  
-     * ******** Mod名字和版本号 ********
-     */
+    private Settings mySettings = new();
+    private static bool _fsmModified = false;
+
     public StubbornKnight() : base("StubbornKnight")
     {
         instance = this;
     }
+
     public override string GetVersion() => "1.0";
 
-    /* 
-     * ******** 预加载和hook ********
-     */
     public override List<(string, string)> GetPreloadNames()
     {
-        // 预加载你想要的攻击特效或者敌人，具体请阅读教程。
-        return new List<(string, string)>
-        {
-            // ("GG_Radiance", "Boss Control/Absolute Radiance")
-        };
+        return new List<(string, string)>();
     }
+
     public override void Initialize(Dictionary<string, Dictionary<string, GameObject>> preloadedObjects)
     {
         On.HeroController.Start += HeroController_Start;
+        On.HeroController.Attack += HeroController_Attack;
         On.PlayMakerFSM.OnEnable += PlayMakerFSM_OnEnable;
 
         ModHooks.LanguageGetHook += changeName;
@@ -337,65 +432,114 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
             self.gameObject.AddComponent<ArrowGame>();
         }
     }
+
+    private void HeroController_Attack(On.HeroController.orig_Attack orig, HeroController self, AttackDirection dir)
+    {
+        if (!mySettings.on)
+        {
+            orig(self, dir);
+            return;
+        }
+
+        var arrowGame = self.GetComponent<ArrowGame>();
+        if (arrowGame == null)
+        {
+            orig(self, dir);
+            return;
+        }
+
+        // 获取期望方向
+        ArrowDirection expected = arrowGame.CurrentTargetArrow;
+        // 将 AttackDirection 转换为可读的字符串
+        string actualDir = dir.ToString();
+        if (dir == AttackDirection.normal)
+        {
+            actualDir = HeroController.instance.cState.facingRight ? "Right" : "Left";
+        }
+        
+        // 检查攻击方向是否匹配
+        bool isSuccess = arrowGame.IsAttackAllowed(dir);
+        
+        if (isSuccess)
+        {
+            // 允许攻击
+            orig(self, dir);
+            // 触发滚动
+            arrowGame.OnSuccessfulAction();
+            Log($"[Attack] Expected: {expected}, Actual: {actualDir}, Result: SUCCESS");
+        }
+        else
+        {
+            // 取消攻击
+            Log($"[Attack] Expected: {expected}, Actual: {actualDir}, Result: FAILED");
+        }
+    }
+
+    private void PlayMakerFSM_OnEnable(On.PlayMakerFSM.orig_OnEnable orig, PlayMakerFSM self)
+    {
+        orig(self);
+
+        if (!mySettings.on || _fsmModified) return;
+
+        // 检测 Spell Control FSM
+        if (self.FsmName == "Spell Control" && self.gameObject == HeroController.instance?.gameObject)
+        {
+            ModifySpellControlFSM(self);
+            _fsmModified = true;
+        }
+    }
+
+    private void ModifySpellControlFSM(PlayMakerFSM fsm)
+    {
+        // 注入到 QC (Quick Cast) 状态
+        InjectSpellAction(fsm, "QC");
+        // 注入到 Spell Choice (普通施法) 状态
+        InjectSpellAction(fsm, "Spell Choice");
+        
+        Log("Spell Control FSM modified");
+    }
+
+    private void InjectSpellAction(PlayMakerFSM fsm, string stateName)
+    {
+        var state = fsm.Fsm.GetState(stateName);
+        if (state == null) return;
+
+        var action = new SpellInterceptAction();
+
+        // 在开头插入自定义 Action
+        var newActions = new FsmStateAction[state.Actions.Length + 1];
+        newActions[0] = action;
+        for (int i = 0; i < state.Actions.Length; i++)
+        {
+            newActions[i + 1] = state.Actions[i];
+        }
+        state.Actions = newActions;
+    }
+
     private string changeName(string key, string title, string orig)
     {
-        // if (key == "MEGA_MOSS_MAIN" || key == "NAME_MEGA_MOSS_CHARGER" && mySettings.on) {
-        //     return "大型苔藓冲飞者";
-        // }
         return orig;
     }
 
-    /* 
-     * ******** FSM相关改动，这个示例改动使得左特随机在空中多次假动作 ********
-     */
-    [Obsolete]
-    private void PlayMakerFSM_OnEnable(On.PlayMakerFSM.orig_OnEnable orig, PlayMakerFSM self)
-    {
-        if (mySettings.on)
-        {
-            //FSM:MoveMent Attacking BroadcastDeath
-            if (self.gameObject.scene.name == "GG_Ghost_Hu" && self.gameObject.name == "Ghost Warrior Hu")
-            {
-                if (self.FsmName == "Attacking")
-                {
-                    self.enabled = false;
-                }
-                if (self.FsmName == "MoveMent")
-                {
-                    self.enabled = false;
-                }
-
-            }
-        }
-        orig(self);
-    }
-
-    /* 
-     * ******** 配置文件读取和菜单设置，如没有额外需求不需要改动 ********
-     */
-    private Settings mySettings = new();
     public bool ToggleButtonInsideMenu => true;
-    // 读取配置文件
+
     public void OnLoadGlobal(Settings settings) => mySettings = settings;
-    // 写入配置文件
+
     public Settings OnSaveGlobal() => mySettings;
-    // 设置菜单格式
+
     public List<IMenuMod.MenuEntry> GetMenuData(IMenuMod.MenuEntry? menu)
     {
         List<IMenuMod.MenuEntry> menus = new();
         menus.Add(
             new()
             {
-                // 这是个单选菜单，这里提供开和关两种选择。
                 Values = new string[]
                 {
                     Language.Language.Get("MOH_ON", "MainMenu"),
                     Language.Language.Get("MOH_OFF", "MainMenu"),
                 },
-                // 把菜单的当前被选项更新到配置变量
                 Saver = i => mySettings.on = i == 0,
                 Loader = () => mySettings.on ? 0 : 1,
-                // Name = "Moss Jumper",
             }
         );
         return menus;
