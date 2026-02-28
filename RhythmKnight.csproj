@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
     <OutputType>Library</OutputType>
@@ -10,7 +10,7 @@
     <GameDir>D:\SteamLibrary\steamapps\common\Hollow Knight\hollow_knight_Data\Managed</GameDir>
   </PropertyGroup>
   <ItemGroup>
-    <EmbeddedResource Include="assets\*" />
+    <EmbeddedResource Include="assets\**\*" />
     <Reference Include="Assembly-CSharp">
       <HintPath>$(GameDir)/Assembly-CSharp.dll</HintPath>
     </Reference>
