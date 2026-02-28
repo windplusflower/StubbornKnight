@@ -8,6 +8,8 @@
     <ImplicitUsings>true</ImplicitUsings>
     <DebugType>portable</DebugType>
     <GameDir>D:\SteamLibrary\steamapps\common\Hollow Knight\hollow_knight_Data\Managed</GameDir>
+    <AssemblyName>StubbornKnight</AssemblyName>
+    <RootNamespace>StubbornKnight</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="assets\**\*" />

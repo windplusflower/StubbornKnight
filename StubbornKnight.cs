@@ -16,7 +16,7 @@ using Satchel.Futils;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
-namespace RhythmKnight;
+namespace StubbornKnight;
 
 public enum ArrowDirection
 {
@@ -94,8 +94,8 @@ public class ArrowGame : MonoBehaviour
         
         try
         {
-            Assembly modAssembly = typeof(RhythmKnight).Assembly;
-            string resourceName = "RhythmKnight.assets.right-arrow.png";
+            Assembly modAssembly = typeof(StubbornKnight).Assembly;
+            string resourceName = "StubbornKnight.assets.right-arrow.png";
             
             using (Stream stream = modAssembly.GetManifestResourceStream(resourceName))
             {
@@ -149,7 +149,7 @@ public class ArrowGame : MonoBehaviour
 
     private void Log(string message)
     {
-        RhythmKnight.instance.Log($"[ArrowGame] {message}");
+        StubbornKnight.instance.Log($"[ArrowGame] {message}");
     }
 
     private void CreateArrowDisplay()
@@ -297,13 +297,13 @@ public class Settings
     public bool on = true;
 }
 
-public class RhythmKnight : Mod, IGlobalSettings<Settings>, IMenuMod
+public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
 {
-    public static RhythmKnight instance;
+    public static StubbornKnight instance;
     /*  
      * ******** Mod名字和版本号 ********
      */
-    public RhythmKnight() : base("RhythmKnight")
+    public StubbornKnight() : base("StubbornKnight")
     {
         instance = this;
     }
