@@ -107,40 +107,7 @@ public class ArrowGame : MonoBehaviour
         
         yield return null;
         
-        Sprite cursorSprite = null;
-        
-        GameObject uiManager = GameObject.Find("_UIManager");
-        if (uiManager != null)
-        {
-            Transform uiCanvas = uiManager.transform.Find("UICanvas");
-            Transform mainMenuScreen = uiCanvas?.Find("MainMenuScreen");
-            Transform mainMenuButtons = mainMenuScreen?.Find("MainMenuButtons");
-            
-            if (mainMenuButtons != null)
-            {
-                Transform startGameButton = mainMenuButtons.Find("StartGameButton");
-                Transform textTransform = startGameButton?.Find("Text");
-                Transform cursorRight = textTransform?.Find("CursorRight");
-                
-                if (cursorRight != null)
-                {
-                    yield return StartCoroutine(ActivateAndGetCursorSpriteCoroutine(cursorRight, sprite => cursorSprite = sprite));
-                }
-            }
-        }
-        
-        if (cursorSprite != null)
-        {
-            for (int i = 0; i < 4; i++)
-            {
-                _arrowSprites[i] = cursorSprite;
-            }
-        }
-        else
-        {
-            LoadFallbackSprites();
-        }
-        
+        LoadFallbackSprites();
         UpdateArrowDisplay();
     }
 
@@ -219,7 +186,7 @@ public class ArrowGame : MonoBehaviour
         try
         {
             Assembly modAssembly = typeof(StubbornKnight).Assembly;
-            string resourceName = "StubbornKnight.assets.right-arrow.png";
+            string resourceName = "StubbornKnight.assets.left-arrow.png";
 
             using (Stream stream = modAssembly.GetManifestResourceStream(resourceName))
             {
@@ -300,7 +267,7 @@ public class ArrowGame : MonoBehaviour
             sr.sortingLayerName = "Effects";
             sr.sortingOrder = 100;
             sr.color = Color.white;
-            sr.transform.localScale = new Vector3(0.9f, 0.9f, 1f);
+            sr.transform.localScale = new Vector3(7.5f, 7.5f, 1f);
 
             _arrowRenderers[i] = sr;
         }
@@ -324,6 +291,14 @@ public class ArrowGame : MonoBehaviour
             int arrowIndex = (ArrowCount - 1) - i;
             _arrowRenderers[i].sprite = _arrowSprites[(int)_currentArrows[arrowIndex]];
             SetArrowRotation(_arrowRenderers[i], _currentArrows[arrowIndex]);
+            
+            float xOffset = 0f;
+            if (_currentArrows[arrowIndex] == ArrowDirection.Right)
+                xOffset = 0f;
+            else if (_currentArrows[arrowIndex] == ArrowDirection.Left)
+                xOffset = -0f;
+            
+            _arrowRenderers[i].transform.localPosition = new Vector3(xOffset, HeightOffset + i * ArrowSpacing, 0);
         }
     }
 
@@ -413,7 +388,13 @@ public class ArrowGame : MonoBehaviour
     {
         for (int i = 0; i < ArrowCount; i++)
         {
-            _arrowRenderers[i].transform.localPosition = new Vector3(0, HeightOffset + i * ArrowSpacing, 0);
+            float xOffset = 0f;
+            if (_currentArrows[i] == ArrowDirection.Right)
+                xOffset = 0f;
+            else if (_currentArrows[i] == ArrowDirection.Left)
+                xOffset = -0f;
+            
+            _arrowRenderers[i].transform.localPosition = new Vector3(xOffset, HeightOffset + i * ArrowSpacing, 0);
         }
     }
 }
