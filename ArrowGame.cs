@@ -67,6 +67,43 @@ public class ArrowGame : MonoBehaviour
         }
     }
 
+    private bool _isPlayingErrorEffect = false;
+
+    public void TriggerErrorEffect()
+    {
+        if (_arrowRenderers[0] == null || _isPlayingErrorEffect) return;
+        _isPlayingErrorEffect = true;
+        StartCoroutine(PlayErrorEffectCoroutine());
+    }
+
+    private IEnumerator PlayErrorEffectCoroutine()
+    {
+        SpriteRenderer targetArrow = _arrowRenderers[0];
+        if (targetArrow == null) 
+        {
+            _isPlayingErrorEffect = false;
+            yield break;
+        }
+
+        float duration = 0.2f;
+        float elapsed = 0f;
+        Vector3 originalPos = targetArrow.transform.localPosition;
+        float shakeAmount = 0.08f;
+        int shakeFrequency = 15;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float decay = 1f - (elapsed / duration);
+            float shake = Mathf.Sin(elapsed * shakeFrequency * Mathf.PI * 2f) * shakeAmount * decay;
+            targetArrow.transform.localPosition = new Vector3(originalPos.x + shake, originalPos.y, 0f);
+            yield return null;
+        }
+
+        targetArrow.transform.localPosition = originalPos;
+        _isPlayingErrorEffect = false;
+    }
+
     private void Start()
     {
         CleanupOldArrows();

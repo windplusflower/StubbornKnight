@@ -45,6 +45,7 @@ public class NailArtInterceptAction : FsmStateAction
 
         if (!isSuccess)
         {
+            arrowGame.TriggerErrorEffect();
             Fsm.Event("CANCEL");
             StubbornKnight.instance.Log($"[NailArt] State:{Fsm.ActiveStateName} Expected: {expected}, Actual: {NailArtName}({actualDir}), Result: FAILED");
         }

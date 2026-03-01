@@ -88,6 +88,7 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
         }
         else
         {
+            arrowGame.TriggerErrorEffect();
             Log($"[Attack] Expected: {expected}, Actual: {actualDir}, Result: FAILED");
         }
     }

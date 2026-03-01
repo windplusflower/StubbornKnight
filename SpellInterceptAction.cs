@@ -59,6 +59,7 @@ public class SpellInterceptAction : FsmStateAction
 
         if (!isSuccess)
         {
+            arrowGame.TriggerErrorEffect();
             Fsm.Event("FSM CANCEL");
             StubbornKnight.instance.Log($"[Spell] Expected: {expected}, Actual: {spellName}({spellDir}), Result: FAILED");
         }
