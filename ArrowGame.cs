@@ -1,8 +1,11 @@
+using System;
+using System.IO;
 using System.Reflection;
 using System.Collections;
 using GlobalEnums;
 using Modding;
 using UnityEngine;
+using UnityEngine.UI;
 using Random = UnityEngine.Random;
 
 namespace StubbornKnight;
@@ -67,7 +70,7 @@ public class ArrowGame : MonoBehaviour
     private void Start()
     {
         CleanupOldArrows();
-        LoadArrowSprites();
+        StartCoroutine(LoadCursorSpriteWithActivation());
         CreateArrowDisplay();
         GenerateNewArrows();
         SetModEnabled(_isEnabled);
@@ -98,68 +101,121 @@ public class ArrowGame : MonoBehaviour
         }
     }
 
-    private void LoadArrowSprites()
+    private IEnumerator LoadCursorSpriteWithActivation()
     {
         _arrowSprites = new Sprite[4];
-
-        Log("Starting inventory arrow search...");
         
-        Transform gameCams = GameCameras.instance?.gameObject.transform;
-        Log($"GameCameras: {gameCams?.name}");
+        yield return null;
         
-        if (gameCams == null) goto fallback;
+        Sprite cursorSprite = null;
         
-        Transform hudCamera = gameCams.Find("HudCamera");
-        Log($"HudCamera: {hudCamera?.name}");
-        
-        if (hudCamera == null) goto fallback;
-        
-        Transform inventory = hudCamera.Find("Inventory");
-        Log($"Inventory: {inventory?.name}");
-        
-        if (inventory == null) goto fallback;
-        
-        // 打印 Inventory 的所有子对象
-        Log("Inventory children:");
-        foreach (Transform child in inventory)
+        GameObject uiManager = GameObject.Find("_UIManager");
+        if (uiManager != null)
         {
-            Log($"  - {child.name}");
+            Transform uiCanvas = uiManager.transform.Find("UICanvas");
+            Transform mainMenuScreen = uiCanvas?.Find("MainMenuScreen");
+            Transform mainMenuButtons = mainMenuScreen?.Find("MainMenuButtons");
+            
+            if (mainMenuButtons != null)
+            {
+                Transform startGameButton = mainMenuButtons.Find("StartGameButton");
+                Transform textTransform = startGameButton?.Find("Text");
+                Transform cursorRight = textTransform?.Find("CursorRight");
+                
+                if (cursorRight != null)
+                {
+                    yield return StartCoroutine(ActivateAndGetCursorSpriteCoroutine(cursorRight, sprite => cursorSprite = sprite));
+                }
+            }
         }
         
-        Transform border = inventory.Find("Border");
-        Log($"Border: {border?.name}");
-        
-        if (border == null) goto fallback;
-        
-        // 打印 Border 的所有子对象
-        Log("Border children:");
-        foreach (Transform child in border)
-        {
-            Log($"  - {child.name}");
-        }
-        
-        Transform paneArrowR = border.Find("Pane Arrow R/Arrow");
-        
-        Log($"Pane Arrow R/Arrow: {paneArrowR?.name}");
-        
-        if (paneArrowR == null) goto fallback;
-        
-        var sr = paneArrowR.GetComponent<SpriteRenderer>();
-        Log($"SpriteRenderer: {sr?.name}, sprite: {sr?.sprite?.name}");
-        
-        if (sr != null && sr.sprite != null)
+        if (cursorSprite != null)
         {
             for (int i = 0; i < 4; i++)
             {
-                _arrowSprites[i] = sr.sprite;
+                _arrowSprites[i] = cursorSprite;
             }
-            Log("Using inventory arrow sprite");
-            return;
         }
+        else
+        {
+            LoadFallbackSprites();
+        }
+        
+        UpdateArrowDisplay();
+    }
 
-        fallback:
-        Log("Could not find inventory arrow, falling back to embedded resource");
+    private IEnumerator ActivateAndGetCursorSpriteCoroutine(Transform cursorRightTransform, Action<Sprite> callback)
+    {
+        GameObject cursorObj = cursorRightTransform.gameObject;
+        Image image = cursorObj.GetComponent<Image>();
+        
+        if (image != null && image.sprite != null && image.sprite.name != "blank_frame")
+        {
+            callback(image.sprite);
+            yield break;
+        }
+        
+        GameObject tempInstance = Instantiate(cursorObj);
+        tempInstance.name = "TempCursorRight";
+        tempInstance.SetActive(true);
+        
+        tempInstance.transform.SetParent(null);
+        tempInstance.transform.position = new Vector3(10000, 10000, 0);
+        
+        Image tempImage = tempInstance.GetComponent<Image>();
+        Animator tempAnimator = tempInstance.GetComponent<Animator>();
+        
+        if (tempAnimator != null)
+        {
+            tempAnimator.enabled = true;
+            tempAnimator.Rebind();
+            tempAnimator.Update(0f);
+            
+            if (HasAnimatorParameter(tempAnimator, "show"))
+            {
+                tempAnimator.ResetTrigger("hide");
+                tempAnimator.SetTrigger("show");
+            }
+        }
+        
+        Sprite result = null;
+        for (int i = 0; i < 30; i++)
+        {
+            if (tempImage != null && tempImage.sprite != null && tempImage.sprite.name != "blank_frame")
+            {
+                result = tempImage.sprite;
+                break;
+            }
+            
+            if (tempAnimator != null)
+            {
+                tempAnimator.Update(0.016f);
+            }
+            
+            yield return null;
+        }
+        
+        Destroy(tempInstance);
+        
+        callback(result);
+    }
 
+    private bool HasAnimatorParameter(Animator animator, string paramName)
+    {
+        if (animator == null || animator.runtimeAnimatorController == null) return false;
+        
+        foreach (AnimatorControllerParameter param in animator.parameters)
+        {
+            if (param.name == paramName)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void LoadFallbackSprites()
+    {
         try
         {
             Assembly modAssembly = typeof(StubbornKnight).Assembly;
@@ -169,7 +225,6 @@ public class ArrowGame : MonoBehaviour
             {
                 if (stream == null)
                 {
-                    Log($"Resource not found: {resourceName}");
                     return;
                 }
 
@@ -187,12 +242,9 @@ public class ArrowGame : MonoBehaviour
                     _arrowSprites[i] = baseSprite;
                 }
             }
-
-            Log("Arrow sprites loaded successfully");
         }
-        catch (Exception e)
+        catch
         {
-            Log("Error loading arrow sprites: " + e.Message);
         }
     }
 
@@ -201,16 +253,16 @@ public class ArrowGame : MonoBehaviour
         switch (dir)
         {
             case ArrowDirection.Right:
-                sr.transform.localRotation = Quaternion.identity;
-                break;
-            case ArrowDirection.Left:
                 sr.transform.localRotation = Quaternion.Euler(0, 180, 0);
                 break;
+            case ArrowDirection.Left:
+                sr.transform.localRotation = Quaternion.identity;
+                break;
             case ArrowDirection.Up:
-                sr.transform.localRotation = Quaternion.Euler(0, 0, 90);
+                sr.transform.localRotation = Quaternion.Euler(0, 0, -90);
                 break;
             case ArrowDirection.Down:
-                sr.transform.localRotation = Quaternion.Euler(0, 0, -90);
+                sr.transform.localRotation = Quaternion.Euler(0, 0, 90);
                 break;
         }
     }
@@ -248,6 +300,7 @@ public class ArrowGame : MonoBehaviour
             sr.sortingLayerName = "Effects";
             sr.sortingOrder = 100;
             sr.color = Color.white;
+            sr.transform.localScale = new Vector3(0.9f, 0.9f, 1f);
 
             _arrowRenderers[i] = sr;
         }
