@@ -27,6 +27,8 @@ public class ArrowGame : MonoBehaviour
     private SpriteRenderer[] _arrowRenderers;
     private ArrowDirection[] _currentArrows;
     private Sprite[] _arrowSprites;
+    private Sprite _redArrowSprite;
+    private Sprite _greenArrowSprite;
     private GameObject _container;
     private bool _isAnimating = false;
     private bool _isEnabled = true;
@@ -64,7 +66,21 @@ public class ArrowGame : MonoBehaviour
         if (!_isAnimating)
         {
             RollArrows();
+            StartCoroutine(PlaySuccessEffectCoroutine());
         }
+    }
+
+    private IEnumerator PlaySuccessEffectCoroutine()
+    {
+        SpriteRenderer targetArrow = _arrowRenderers[0];
+        if (targetArrow == null || _greenArrowSprite == null) yield break;
+
+        Sprite originalSprite = targetArrow.sprite;
+        targetArrow.sprite = _greenArrowSprite;
+
+        yield return new WaitForSeconds(0.15f);
+
+        targetArrow.sprite = originalSprite;
     }
 
     private bool _isPlayingErrorEffect = false;
@@ -85,6 +101,12 @@ public class ArrowGame : MonoBehaviour
             yield break;
         }
 
+        Sprite originalSprite = targetArrow.sprite;
+        if (_redArrowSprite != null)
+        {
+            targetArrow.sprite = _redArrowSprite;
+        }
+        
         float duration = 0.2f;
         float elapsed = 0f;
         Vector3 originalPos = targetArrow.transform.localPosition;
@@ -101,6 +123,7 @@ public class ArrowGame : MonoBehaviour
         }
 
         targetArrow.transform.localPosition = originalPos;
+        targetArrow.sprite = originalSprite;
         _isPlayingErrorEffect = false;
     }
 
@@ -246,9 +269,37 @@ public class ArrowGame : MonoBehaviour
                     _arrowSprites[i] = baseSprite;
                 }
             }
+
+            _redArrowSprite = LoadSpriteFromResources("StubbornKnight.assets.red-arrow.png");
+            _greenArrowSprite = LoadSpriteFromResources("StubbornKnight.assets.green-arrow.png");
         }
         catch
         {
+        }
+    }
+
+    private Sprite LoadSpriteFromResources(string resourceName)
+    {
+        try
+        {
+            Assembly modAssembly = typeof(StubbornKnight).Assembly;
+            using (Stream stream = modAssembly.GetManifestResourceStream(resourceName))
+            {
+                if (stream == null) return null;
+
+                byte[] buffer = new byte[stream.Length];
+                stream.Read(buffer, 0, buffer.Length);
+
+                Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                tex.LoadImage(buffer);
+                tex.Apply();
+
+                return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 1024f);
+            }
+        }
+        catch
+        {
+            return null;
         }
     }
 
