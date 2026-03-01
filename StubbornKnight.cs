@@ -43,7 +43,6 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
     {
         On.HeroController.Start += HeroController_Start;
         On.HeroController.Attack += HeroController_Attack;
-        On.HeroController.CanNailArt += HeroController_CanNailArt;
         On.PlayMakerFSM.OnEnable += PlayMakerFSM_OnEnable;
 
         ModHooks.LanguageGetHook += changeName;
@@ -93,57 +92,6 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
         }
     }
 
-    private bool HeroController_CanNailArt(On.HeroController.orig_CanNailArt orig, HeroController self)
-    {
-        bool result = orig(self);
-
-        if (!mySettings.on || !result)
-        {
-            return result;
-        }
-
-        var arrowGame = self.GetComponent<ArrowGame>();
-        if (arrowGame == null)
-        {
-            return result;
-        }
-
-        float verticalInput = Input.GetAxisRaw("Vertical");
-        ArrowDirection arrowDir;
-        string nailArtName;
-
-        if (verticalInput > 0.1f)
-        {
-            arrowDir = ArrowDirection.Up;
-            nailArtName = "Cyclone Slash";
-        }
-        else if (verticalInput < -0.1f)
-        {
-            arrowDir = ArrowDirection.Down;
-            nailArtName = "Dash Slash";
-        }
-        else
-        {
-            arrowDir = self.cState.facingRight ? ArrowDirection.Right : ArrowDirection.Left;
-            nailArtName = "Great Slash";
-        }
-
-        ArrowDirection expected = arrowGame.CurrentTargetArrow;
-        bool isSuccess = arrowGame.IsSpellAllowed(arrowDir);
-
-        if (!isSuccess)
-        {
-            Log($"[NailArt] Expected: {expected}, Actual: {nailArtName}({arrowDir}), Result: FAILED");
-            return false;
-        }
-        else
-        {
-            arrowGame.OnSuccessfulAction();
-            Log($"[NailArt] Expected: {expected}, Actual: {nailArtName}({arrowDir}), Result: SUCCESS");
-            return result;
-        }
-    }
-
     private void PlayMakerFSM_OnEnable(On.PlayMakerFSM.orig_OnEnable orig, PlayMakerFSM self)
     {
         orig(self);
@@ -151,6 +99,11 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
         if (self.FsmName == "Spell Control" && self.gameObject == HeroController.instance?.gameObject)
         {
             ModifySpellControlFSM(self);
+        }
+
+        if (self.FsmName == "Nail Arts" && self.gameObject == HeroController.instance?.gameObject)
+        {
+            ModifyNailArtsFSM(self);
         }
     }
 
@@ -160,6 +113,47 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
         InjectSpellAction(fsm, "Spell Choice");
 
         Log("Spell Control FSM modified");
+    }
+
+    private void ModifyNailArtsFSM(PlayMakerFSM fsm)
+    {
+        InjectNailArtAction(fsm, "Has Dash?", ArrowDirection.Left, "Dash Slash");
+        InjectNailArtAction(fsm, "Has Cyclone?", ArrowDirection.Up, "Cyclone Slash");
+        InjectNailArtAction(fsm, "Has G Slash?", ArrowDirection.Left, "Great Slash");
+
+        Log("Nail Arts FSM modified");
+    }
+
+    private void InjectNailArtAction(PlayMakerFSM fsm, string stateName, ArrowDirection direction, string nailArtName)
+    {
+        var state = fsm.Fsm.GetState(stateName);
+        if (state == null) return;
+
+        foreach (var existingAction in state.Actions)
+        {
+            if (existingAction is NailArtInterceptAction)
+            {
+                return;
+            }
+        }
+
+        var action = new NailArtInterceptAction
+        {
+            ExpectedDirection = direction,
+            NailArtName = nailArtName
+        };
+
+        var newActions = new FsmStateAction[state.Actions.Length + 1];
+        newActions[0] = action;
+        for (int i = 0; i < state.Actions.Length; i++)
+        {
+            newActions[i + 1] = state.Actions[i];
+        }
+        state.Actions = newActions;
+    }
+
+    private void CheckAndInterceptNailArt(ArrowDirection expectedDir, string nailArtName, PlayMakerFSM fsm)
+    {
     }
 
     private void InjectSpellAction(PlayMakerFSM fsm, string stateName)
