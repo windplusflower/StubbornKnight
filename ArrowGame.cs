@@ -102,6 +102,64 @@ public class ArrowGame : MonoBehaviour
     {
         _arrowSprites = new Sprite[4];
 
+        Log("Starting inventory arrow search...");
+        
+        Transform gameCams = GameCameras.instance?.gameObject.transform;
+        Log($"GameCameras: {gameCams?.name}");
+        
+        if (gameCams == null) goto fallback;
+        
+        Transform hudCamera = gameCams.Find("HudCamera");
+        Log($"HudCamera: {hudCamera?.name}");
+        
+        if (hudCamera == null) goto fallback;
+        
+        Transform inventory = hudCamera.Find("Inventory");
+        Log($"Inventory: {inventory?.name}");
+        
+        if (inventory == null) goto fallback;
+        
+        // 打印 Inventory 的所有子对象
+        Log("Inventory children:");
+        foreach (Transform child in inventory)
+        {
+            Log($"  - {child.name}");
+        }
+        
+        Transform border = inventory.Find("Border");
+        Log($"Border: {border?.name}");
+        
+        if (border == null) goto fallback;
+        
+        // 打印 Border 的所有子对象
+        Log("Border children:");
+        foreach (Transform child in border)
+        {
+            Log($"  - {child.name}");
+        }
+        
+        Transform paneArrowR = border.Find("Pane Arrow R/Arrow");
+        
+        Log($"Pane Arrow R/Arrow: {paneArrowR?.name}");
+        
+        if (paneArrowR == null) goto fallback;
+        
+        var sr = paneArrowR.GetComponent<SpriteRenderer>();
+        Log($"SpriteRenderer: {sr?.name}, sprite: {sr?.sprite?.name}");
+        
+        if (sr != null && sr.sprite != null)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                _arrowSprites[i] = sr.sprite;
+            }
+            Log("Using inventory arrow sprite");
+            return;
+        }
+
+        fallback:
+        Log("Could not find inventory arrow, falling back to embedded resource");
+
         try
         {
             Assembly modAssembly = typeof(StubbornKnight).Assembly;
