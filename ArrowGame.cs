@@ -20,7 +20,8 @@ public enum ArrowDirection
 
 public class ArrowGame : MonoBehaviour
 {
-    private const int ArrowCount = 4;
+    private int _arrowCount = 3;
+    private float _arrowOpacity = 1.0f;
     private const float ArrowSpacing = 0.6f;
     private const float HeightOffset = 1.0f;
 
@@ -34,12 +35,12 @@ public class ArrowGame : MonoBehaviour
     private bool _isEnabled = true;
     private const float AnimationDuration = 0.2f;
 
-    public ArrowDirection CurrentTargetArrow => _currentArrows[3];
+    public ArrowDirection CurrentTargetArrow => _currentArrows[_arrowCount - 1];
     public bool IsAnimating => _isAnimating;
 
     public bool IsAttackAllowed(AttackDirection dir)
     {
-        ArrowDirection target = _currentArrows[3];
+        ArrowDirection target = _currentArrows[_arrowCount - 1];
         switch (dir)
         {
             case AttackDirection.upward:
@@ -58,7 +59,7 @@ public class ArrowGame : MonoBehaviour
 
     public bool IsSpellAllowed(ArrowDirection dir)
     {
-        return _currentArrows[3] == dir;
+        return _currentArrows[_arrowCount - 1] == dir;
     }
 
     public void OnSuccessfulAction()
@@ -336,16 +337,57 @@ public class ArrowGame : MonoBehaviour
         }
     }
 
+    public void SetConfig(int arrowCount, float arrowOpacity)
+    {
+        _arrowCount = arrowCount;
+        _arrowOpacity = arrowOpacity;
+        ApplyOpacity(arrowOpacity);
+    }
+
+    private void ApplyOpacity(float opacity)
+    {
+        if (_arrowRenderers == null) return;
+        for (int i = 0; i < _arrowRenderers.Length; i++)
+        {
+            if (_arrowRenderers[i] != null)
+            {
+                Color c = _arrowRenderers[i].color;
+                c.a = opacity;
+                _arrowRenderers[i].color = c;
+            }
+        }
+    }
+
+    public void UpdateConfig(int arrowCount, float arrowOpacity)
+    {
+        bool needRecreate = arrowCount != _arrowCount;
+        _arrowCount = arrowCount;
+        _arrowOpacity = arrowOpacity;
+
+        if (needRecreate && _container != null)
+        {
+            Destroy(_container);
+            CreateArrowDisplay();
+            GenerateNewArrows();
+        }
+        else
+        {
+            ApplyOpacity(arrowOpacity);
+        }
+    }
+
     private void CreateArrowDisplay()
     {
         _container = new GameObject("ArrowContainer");
         _container.transform.SetParent(HeroController.instance.transform);
         _container.transform.localPosition = Vector3.zero;
 
-        _arrowRenderers = new SpriteRenderer[ArrowCount];
-        _currentArrows = new ArrowDirection[ArrowCount];
+        _arrowRenderers = new SpriteRenderer[_arrowCount];
+        _currentArrows = new ArrowDirection[_arrowCount];
 
-        for (int i = 0; i < ArrowCount; i++)
+        Color arrowColor = new Color(1f, 1f, 1f, _arrowOpacity);
+
+        for (int i = 0; i < _arrowCount; i++)
         {
             GameObject arrowObj = new GameObject($"Arrow_{i}");
             arrowObj.transform.SetParent(_container.transform);
@@ -354,7 +396,7 @@ public class ArrowGame : MonoBehaviour
             SpriteRenderer sr = arrowObj.AddComponent<SpriteRenderer>();
             sr.sortingLayerName = "Effects";
             sr.sortingOrder = 100;
-            sr.color = Color.white;
+            sr.color = arrowColor;
             sr.transform.localScale = new Vector3(7.5f, 7.5f, 1f);
 
             _arrowRenderers[i] = sr;
@@ -363,7 +405,7 @@ public class ArrowGame : MonoBehaviour
 
     private void GenerateNewArrows()
     {
-        for (int i = 0; i < ArrowCount; i++)
+        for (int i = 0; i < _arrowCount; i++)
         {
             _currentArrows[i] = (ArrowDirection)Random.Range(0, 4);
         }
@@ -373,10 +415,10 @@ public class ArrowGame : MonoBehaviour
 
     private void UpdateArrowDisplay()
     {
-        for (int i = 0; i < ArrowCount; i++)
+        for (int i = 0; i < _arrowCount; i++)
         {
             if (_arrowRenderers[i] == null) continue;
-            int arrowIndex = (ArrowCount - 1) - i;
+            int arrowIndex = (_arrowCount - 1) - i;
             _arrowRenderers[i].sprite = _arrowSprites[(int)_currentArrows[arrowIndex]];
             SetArrowRotation(_arrowRenderers[i], _currentArrows[arrowIndex]);
             
@@ -392,11 +434,12 @@ public class ArrowGame : MonoBehaviour
 
     private void SetTopArrowTransparent()
     {
-        if (_arrowRenderers[3] != null)
+        int topIndex = _arrowCount - 1;
+        if (_arrowRenderers[topIndex] != null)
         {
-            Color c = _arrowRenderers[3].color;
+            Color c = _arrowRenderers[topIndex].color;
             c.a = 0f;
-            _arrowRenderers[3].color = c;
+            _arrowRenderers[topIndex].color = c;
         }
     }
 
@@ -411,10 +454,10 @@ public class ArrowGame : MonoBehaviour
 
         float elapsed = 0f;
 
-        Vector3[] startPositions = new Vector3[ArrowCount];
-        Vector3[] targetPositions = new Vector3[ArrowCount];
+        Vector3[] startPositions = new Vector3[_arrowCount];
+        Vector3[] targetPositions = new Vector3[_arrowCount];
 
-        for (int i = 0; i < ArrowCount; i++)
+        for (int i = 0; i < _arrowCount; i++)
         {
             if (_arrowRenderers[i] == null) continue;
             startPositions[i] = _arrowRenderers[i].transform.localPosition;
@@ -426,7 +469,7 @@ public class ArrowGame : MonoBehaviour
             elapsed += Time.deltaTime;
             float t = Mathf.SmoothStep(0f, 1f, elapsed / AnimationDuration);
 
-            for (int i = 0; i < ArrowCount; i++)
+            for (int i = 0; i < _arrowCount; i++)
             {
                 if (_arrowRenderers[i] != null)
                     _arrowRenderers[i].transform.localPosition = Vector3.Lerp(startPositions[i], targetPositions[i], t);
@@ -435,21 +478,22 @@ public class ArrowGame : MonoBehaviour
             if (_arrowRenderers[0] != null)
             {
                 Color c0 = _arrowRenderers[0].color;
-                c0.a = Mathf.Lerp(1f, 0f, t);
+                c0.a = Mathf.Lerp(_arrowOpacity, 0f, t);
                 _arrowRenderers[0].color = c0;
             }
 
-            if (_arrowRenderers[3] != null)
+            int topIndex = _arrowCount - 1;
+            if (_arrowRenderers[topIndex] != null)
             {
-                Color c3 = _arrowRenderers[3].color;
-                c3.a = Mathf.Lerp(0f, 1f, t);
-                _arrowRenderers[3].color = c3;
+                Color c3 = _arrowRenderers[topIndex].color;
+                c3.a = Mathf.Lerp(0f, _arrowOpacity, t);
+                _arrowRenderers[topIndex].color = c3;
             }
 
             yield return null;
         }
 
-        for (int i = ArrowCount - 1; i > 0; i--)
+        for (int i = _arrowCount - 1; i > 0; i--)
         {
             _currentArrows[i] = _currentArrows[i - 1];
         }
@@ -458,12 +502,12 @@ public class ArrowGame : MonoBehaviour
         ResetArrowPositions();
         UpdateArrowDisplay();
 
-        for (int i = 0; i < ArrowCount - 1; i++)
+        for (int i = 0; i < _arrowCount - 1; i++)
         {
             if (_arrowRenderers[i] != null)
             {
                 Color c = _arrowRenderers[i].color;
-                c.a = 1f;
+                c.a = _arrowOpacity;
                 _arrowRenderers[i].color = c;
             }
         }
@@ -474,7 +518,7 @@ public class ArrowGame : MonoBehaviour
 
     private void ResetArrowPositions()
     {
-        for (int i = 0; i < ArrowCount; i++)
+        for (int i = 0; i < _arrowCount; i++)
         {
             float xOffset = 0f;
             if (_currentArrows[i] == ArrowDirection.Right)

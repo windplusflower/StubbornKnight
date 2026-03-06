@@ -18,6 +18,8 @@ namespace StubbornKnight;
 public class Settings
 {
     public bool on = true;
+    public int arrowCount = 3;
+    public float arrowOpacity = 1.0f;
 }
 
 public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
@@ -54,6 +56,7 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
 
         var arrowGame = self.gameObject.AddComponent<ArrowGame>();
         arrowGame.SetModEnabled(mySettings.on);
+        arrowGame.SetConfig(mySettings.arrowCount + 1, mySettings.arrowOpacity);
     }
 
     private void HeroController_Attack(On.HeroController.orig_Attack orig, HeroController self, AttackDirection dir)
@@ -198,17 +201,28 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
         }
     }
 
+    private void ApplyArrowSettings()
+    {
+        if (HeroController.instance != null)
+        {
+            var arrowGame = HeroController.instance.GetComponent<ArrowGame>();
+            arrowGame?.UpdateConfig(mySettings.arrowCount + 1, mySettings.arrowOpacity);
+        }
+    }
+
     public List<IMenuMod.MenuEntry> GetMenuData(IMenuMod.MenuEntry? menu)
     {
         List<IMenuMod.MenuEntry> menus = new();
+
+        string[] onOffValues = new string[]
+        {
+            Language.Language.Get("MOH_ON", "MainMenu"),
+            Language.Language.Get("MOH_OFF", "MainMenu"),
+        };
         menus.Add(
             new()
             {
-                Values = new string[]
-                {
-                    Language.Language.Get("MOH_ON", "MainMenu"),
-                    Language.Language.Get("MOH_OFF", "MainMenu"),
-                },
+                Values = onOffValues,
                 Saver = i => {
                     mySettings.on = i == 0;
                     ToggleModSetting(mySettings.on);
@@ -217,6 +231,43 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
                 Name = "StubbornKnight"
             }
         );
+
+        string[] arrowCountValues = new string[30];
+        for (int i = 0; i < 30; i++)
+        {
+            arrowCountValues[i] = (i + 1).ToString();
+        }
+        menus.Add(
+            new()
+            {
+                Values = arrowCountValues,
+                Saver = i => {
+                    mySettings.arrowCount = i + 1;
+                    ApplyArrowSettings();
+                },
+                Loader = () => mySettings.arrowCount - 1,
+                Name = "Arrow Queue Length"
+            }
+        );
+
+        string[] opacityValues = new string[10];
+        for (int i = 0; i < 10; i++)
+        {
+            opacityValues[i] = ((i + 1) * 0.1f).ToString("F1");
+        }
+        menus.Add(
+            new()
+            {
+                Values = opacityValues,
+                Saver = i => {
+                    mySettings.arrowOpacity = (i + 1) * 0.1f;
+                    ApplyArrowSettings();
+                },
+                Loader = () => (int)(mySettings.arrowOpacity * 10) - 1,
+                Name = "Arrow Opacity"
+            }
+        );
+
         return menus;
     }
 }
