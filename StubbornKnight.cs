@@ -1,8 +1,3 @@
-/*
- *  空洞骑士 Mod 入门到进阶指南/配套模版
- *  作者：近环（https://space.bilibili.com/1224243724）
- */
-
 using System.Collections.Generic;
 using GlobalEnums;
 using HutongGames.PlayMaker;
@@ -45,7 +40,7 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
     public override void Initialize(Dictionary<string, Dictionary<string, GameObject>> preloadedObjects)
     {
         On.HeroController.Start += HeroController_Start;
-        On.HeroController.Attack += HeroController_Attack;
+        On.HeroController.DoAttack += HeroController_DoAttack;
         On.PlayMakerFSM.OnEnable += PlayMakerFSM_OnEnable;
 
         ModHooks.LanguageGetHook += changeName;
@@ -60,38 +55,67 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
         arrowGame.SetConfig(mySettings.arrowCount + 1, mySettings.arrowOpacity, mySettings.soundVolume);
     }
 
-    private void HeroController_Attack(On.HeroController.orig_Attack orig, HeroController self, AttackDirection dir)
+    private void HeroController_DoAttack(On.HeroController.orig_DoAttack orig, HeroController self)
     {
-        if (!mySettings.on)
+        try
         {
-            orig(self, dir);
-            return;
-        }
+            if (!mySettings.on)
+            {
+                orig(self);
+                return;
+            }
 
-        var arrowGame = self.GetComponent<ArrowGame>();
-        if (arrowGame == null)
-        {
-            orig(self, dir);
-            return;
-        }
+            var arrowGame = self.GetComponent<ArrowGame>();
+            if (arrowGame == null)
+            {
+                orig(self);
+                return;
+            }
 
-        ArrowDirection expected = arrowGame.CurrentTargetArrow;
-        string actualDir = dir.ToString();
-        if (dir == AttackDirection.normal)
-        {
-            actualDir = HeroController.instance.cState.facingRight ? "Right" : "Left";
-        }
+            float verticalInput = UnityEngine.Input.GetAxisRaw("Vertical");
+            float horizontalInput = UnityEngine.Input.GetAxisRaw("Horizontal");
 
-        bool isSuccess = arrowGame.IsAttackAllowed(dir);
+            AttackDirection attackDir;
+            if (verticalInput > 0.1f)
+            {
+                attackDir = AttackDirection.upward;
+            }
+            else if (verticalInput < -0.1f && self.hero_state != ActorStates.idle && self.hero_state != ActorStates.running)
+            {
+                attackDir = AttackDirection.downward;
+            }
+            else if (horizontalInput > 0.1f || horizontalInput < -0.1f)
+            {
+                attackDir = AttackDirection.normal;
+            }
+            else
+            {
+                attackDir = AttackDirection.normal;
+            }
 
-        if (isSuccess)
-        {
-            orig(self, dir);
-            arrowGame.OnSuccessfulAction();
+            bool isAllowed = arrowGame.IsAttackAllowed(attackDir);
+
+            if (isAllowed)
+            {
+                orig(self);
+                ArrowDirection targetArrow = arrowGame.CurrentTargetArrow;
+                ArrowDirection actualDir = attackDir == AttackDirection.normal 
+                    ? (self.cState.facingRight ? ArrowDirection.Right : ArrowDirection.Left)
+                    : (attackDir == AttackDirection.upward ? ArrowDirection.Up : ArrowDirection.Down);
+                
+                if (actualDir == targetArrow)
+                {
+                    arrowGame.OnSuccessfulAction();
+                }
+            }
+            else
+            {
+                arrowGame.TriggerErrorEffect();
+            }
         }
-        else
+        catch
         {
-            arrowGame.TriggerErrorEffect();
+            orig(self);
         }
     }
 
