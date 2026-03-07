@@ -43,6 +43,15 @@
     <Reference Include="UnityEngine.UI">
       <HintPath>$(GameDir)/UnityEngine.UI.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestWWWModule">
+      <HintPath>$(GameDir)/UnityEngine.UnityWebRequestWWWModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>$(GameDir)/UnityEngine.UnityWebRequestModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAudioModule">
+      <HintPath>$(GameDir)/UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
+    </Reference>
     <Reference Include="PlayMaker">
       <HintPath>$(GameDir)/PlayMaker.dll</HintPath>
     </Reference>

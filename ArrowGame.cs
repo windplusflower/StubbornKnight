@@ -35,6 +35,11 @@ public class ArrowGame : MonoBehaviour
     private bool _isEnabled = true;
     private const float AnimationDuration = 0.2f;
 
+    private AudioSource _audioSource;
+    private AudioClip _successClip;
+    private AudioClip _failClip;
+    private float _soundVolume = 0.5f;
+
     public ArrowDirection CurrentTargetArrow => _currentArrows[_arrowCount - 1];
     public bool IsAnimating => _isAnimating;
 
@@ -68,7 +73,51 @@ public class ArrowGame : MonoBehaviour
         {
             RollArrows();
             StartCoroutine(PlaySuccessEffectCoroutine());
+            PlaySuccessSound();
         }
+    }
+
+    private void PlaySuccessSound()
+    {
+        if (_audioSource == null)
+        {
+            Log("PlaySuccessSound: AudioSource is null");
+            return;
+        }
+        if (_successClip == null)
+        {
+            Log("PlaySuccessSound: successClip is null");
+            return;
+        }
+        Log($"Playing success sound with volume {_soundVolume}");
+        _audioSource.PlayOneShot(_successClip, _soundVolume);
+    }
+
+    private bool _isPlayingFailSound = false;
+
+    private void PlayFailSound()
+    {
+        if (_isPlayingFailSound) return;
+        if (_audioSource == null)
+        {
+            Log("PlayFailSound: AudioSource is null");
+            return;
+        }
+        if (_failClip == null)
+        {
+            Log("PlayFailSound: failClip is null");
+            return;
+        }
+        Log($"Playing fail sound with volume {_soundVolume}");
+        _isPlayingFailSound = true;
+        _audioSource.PlayOneShot(_failClip, _soundVolume);
+        StartCoroutine(ResetFailSoundFlag());
+    }
+
+    private IEnumerator ResetFailSoundFlag()
+    {
+        yield return new WaitForSeconds(_failClip.length);
+        _isPlayingFailSound = false;
     }
 
     private IEnumerator PlaySuccessEffectCoroutine()
@@ -91,6 +140,7 @@ public class ArrowGame : MonoBehaviour
         if (_arrowRenderers[0] == null || _isPlayingErrorEffect) return;
         _isPlayingErrorEffect = true;
         StartCoroutine(PlayErrorEffectCoroutine());
+        PlayFailSound();
     }
 
     private IEnumerator PlayErrorEffectCoroutine()
@@ -130,11 +180,73 @@ public class ArrowGame : MonoBehaviour
 
     private void Start()
     {
+        InitAudioSource();
         CleanupOldArrows();
         StartCoroutine(LoadCursorSpriteWithActivation());
+        StartCoroutine(LoadAudioClips());
         CreateArrowDisplay();
         GenerateNewArrows();
         SetModEnabled(_isEnabled);
+    }
+
+    private void InitAudioSource()
+    {
+        if (HeroController.instance == null) return;
+        GameObject playerObj = HeroController.instance.gameObject;
+        _audioSource = playerObj.GetComponent<AudioSource>();
+        if (_audioSource == null)
+        {
+            _audioSource = playerObj.AddComponent<AudioSource>();
+            _audioSource.spatialBlend = 0f;
+            _audioSource.playOnAwake = false;
+        }
+    }
+
+    private IEnumerator LoadAudioClips()
+    {
+        yield return null;
+        _successClip = LoadAudioClipFromResources("StubbornKnight.assets.success.wav");
+        _failClip = LoadAudioClipFromResources("StubbornKnight.assets.fail.wav");
+        Log($"Audio loaded: success={_successClip != null}, fail={_failClip != null}");
+    }
+
+    private AudioClip LoadAudioClipFromResources(string resourceName)
+    {
+        try
+        {
+            Assembly modAssembly = typeof(StubbornKnight).Assembly;
+            using (Stream stream = modAssembly.GetManifestResourceStream(resourceName))
+            {
+                if (stream == null) return null;
+
+                byte[] buffer = new byte[stream.Length];
+                stream.Read(buffer, 0, buffer.Length);
+
+                string tempPath = Path.Combine(Path.GetTempPath(), "stubbornknight_" + Path.GetRandomFileName() + ".wav");
+                File.WriteAllBytes(tempPath, buffer);
+
+                AudioClip clip = null;
+                using (UnityEngine.WWW www = new UnityEngine.WWW("file:///" + tempPath.Replace("\\", "/")))
+                {
+                    float timeout = Time.time + 2f;
+                    while (!www.isDone && Time.time < timeout)
+                    {
+                    }
+                    if (string.IsNullOrEmpty(www.error) && www.GetAudioClip() != null)
+                    {
+                        clip = www.GetAudioClip();
+                        clip.name = Path.GetFileNameWithoutExtension(resourceName);
+                    }
+                }
+                try { File.Delete(tempPath); } catch { }
+                return clip;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"Error loading audio: {ex.Message}");
+            return null;
+        }
     }
 
     private void CleanupOldArrows()
@@ -337,10 +449,11 @@ public class ArrowGame : MonoBehaviour
         }
     }
 
-    public void SetConfig(int arrowCount, float arrowOpacity)
+    public void SetConfig(int arrowCount, float arrowOpacity, int soundVolume)
     {
         _arrowCount = arrowCount;
         _arrowOpacity = arrowOpacity;
+        _soundVolume = soundVolume / 10f;
         ApplyOpacity(arrowOpacity);
     }
 
@@ -358,11 +471,12 @@ public class ArrowGame : MonoBehaviour
         }
     }
 
-    public void UpdateConfig(int arrowCount, float arrowOpacity)
+    public void UpdateConfig(int arrowCount, float arrowOpacity, int soundVolume)
     {
         bool needRecreate = arrowCount != _arrowCount;
         _arrowCount = arrowCount;
         _arrowOpacity = arrowOpacity;
+        _soundVolume = soundVolume / 10f;
 
         if (needRecreate && _container != null)
         {
@@ -373,6 +487,7 @@ public class ArrowGame : MonoBehaviour
         else
         {
             ApplyOpacity(arrowOpacity);
+            SetTopArrowTransparent();
         }
     }
 

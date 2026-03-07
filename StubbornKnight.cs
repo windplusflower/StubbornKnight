@@ -20,6 +20,7 @@ public class Settings
     public bool on = true;
     public int arrowCount = 3;
     public float arrowOpacity = 1.0f;
+    public int soundVolume = 5;
 }
 
 public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
@@ -56,7 +57,7 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
 
         var arrowGame = self.gameObject.AddComponent<ArrowGame>();
         arrowGame.SetModEnabled(mySettings.on);
-        arrowGame.SetConfig(mySettings.arrowCount + 1, mySettings.arrowOpacity);
+        arrowGame.SetConfig(mySettings.arrowCount + 1, mySettings.arrowOpacity, mySettings.soundVolume);
     }
 
     private void HeroController_Attack(On.HeroController.orig_Attack orig, HeroController self, AttackDirection dir)
@@ -206,7 +207,7 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
         if (HeroController.instance != null)
         {
             var arrowGame = HeroController.instance.GetComponent<ArrowGame>();
-            arrowGame?.UpdateConfig(mySettings.arrowCount + 1, mySettings.arrowOpacity);
+            arrowGame?.UpdateConfig(mySettings.arrowCount + 1, mySettings.arrowOpacity, mySettings.soundVolume);
         }
     }
 
@@ -265,6 +266,24 @@ public class StubbornKnight : Mod, IGlobalSettings<Settings>, IMenuMod
                 },
                 Loader = () => (int)(mySettings.arrowOpacity * 10) - 1,
                 Name = "Arrow Opacity"
+            }
+        );
+
+        string[] volumeValues = new string[11];
+        for (int i = 0; i <= 10; i++)
+        {
+            volumeValues[i] = i.ToString();
+        }
+        menus.Add(
+            new()
+            {
+                Values = volumeValues,
+                Saver = i => {
+                    mySettings.soundVolume = i;
+                    ApplyArrowSettings();
+                },
+                Loader = () => mySettings.soundVolume,
+                Name = "Sound Volume"
             }
         );
 
