@@ -18,11 +18,11 @@ StubbornKnight is a **stubborn knight mod**. The Knight's mind is always fixated
 |-------------|--------------|-------------------|
 | **Normal Attack** | Attack button | Left/Right (based on character facing) |
 | **Great Slash** | Attack + Hold | Left/Right (based on character facing) |
-| **Dash Slash** | Attack + Down + Hold | Down ⬇️ |
-| **Cyclone Slash** | Attack + Up + Hold | Up ⬆️ |
-| **Vengeful Spirit/Shade Soul** | Spell button | Left/Right (based on character facing) |
-| **Howling Wraiths** | Spell button + Up | Up ⬆️ |
-| **Abyss Shriek** | Spell button + Down | Down ⬇️ |
+| **Dash Slash** | Attack + Dash + Hold | Left/Right (based on character facing) |
+| **Cyclone Slash** | Attack + Up/Down + Hold | Up/Down |
+| **Fireball** | Spell button | Left/Right (based on character facing) |
+| **Shriek** | Spell button + Up | Up ⬆️ |
+| **Quake** | Spell button + Down | Down ⬇️ |
 
 ### Failure Penalty
 - When the action direction **does not match** the desired direction, the action will be **intercepted** (no attack hitbox/no mana consumed)
