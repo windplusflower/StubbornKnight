@@ -89,7 +89,6 @@ public class ArrowGame : MonoBehaviour
             Log("PlaySuccessSound: successClip is null");
             return;
         }
-        Log($"Playing success sound with volume {_soundVolume}");
         _audioSource.PlayOneShot(_successClip, _soundVolume);
     }
 
@@ -108,7 +107,6 @@ public class ArrowGame : MonoBehaviour
             Log("PlayFailSound: failClip is null");
             return;
         }
-        Log($"Playing fail sound with volume {_soundVolume}");
         _isPlayingFailSound = true;
         _audioSource.PlayOneShot(_failClip, _soundVolume);
         StartCoroutine(ResetFailSoundFlag());
