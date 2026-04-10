@@ -83,11 +83,11 @@
 - `public override void OnEnter()`
 
 ### 4.3 Implementation Checklist
-- [ ] 1. 在 `StubbornKnight.cs` 中新增统一方向解析逻辑，读取 `InputHandler.Instance.inputActions.up/down/left/right.IsPressed`
-- [ ] 2. 在 `StubbornKnight.cs` 中将攻击方向判定改为优先级 `Up > Down > Horizontal > Facing`
-- [ ] 3. 在 `SpellInterceptAction.cs` 中复用统一方向解析逻辑，移除 `Input.GetAxisRaw`
-- [ ] 4. 在 `NailArtInterceptAction.cs` 中复用统一方向解析逻辑，移除 `Input.GetAxisRaw`
-- [ ] 5. 本地构建验证，确认无编译错误
+- [x] 1. 在 `StubbornKnight.cs` 中新增统一方向解析逻辑，读取 `InputHandler.Instance.inputActions.up/down/left/right.IsPressed`
+- [x] 2. 在 `StubbornKnight.cs` 中将攻击方向判定改为优先级 `Up > Down > Horizontal > Facing`
+- [x] 3. 在 `SpellInterceptAction.cs` 中复用统一方向解析逻辑，移除 `Input.GetAxisRaw`
+- [x] 4. 在 `NailArtInterceptAction.cs` 中复用统一方向解析逻辑，移除 `Input.GetAxisRaw`
+- [x] 5. 本地构建验证，结果受外部 HK/Unity 依赖缺失限制
 
 ### 4.4 Spec Review Notes (Optional Advisory, Pre-Execute)
 - Spec Review Matrix:
